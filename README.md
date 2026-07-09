@@ -6,7 +6,7 @@ Tracking-by-propagation (TBP) methods perform end-to-end multi-object tracking b
 
 ![Overall structure](assets/Overall_structure.png)
 
-https://github.com/user-attachments/assets/80948dee-ba0b-4f3e-88d4-0140220d531b
+<video src="https://github.com/user-attachments/assets/80948dee-ba0b-4f3e-88d4-0140220d531b" controls="controls" width="960" height="540"></video>
 
 ## 📣 News
 
