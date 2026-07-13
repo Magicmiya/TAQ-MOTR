@@ -1,0 +1,45 @@
+.*
+weight/
+outputs/*
+*_ref.py
+*.pth
+*.mp4
+todo*.md
+*_CN.md
+out.tar.gz
+/paper/
+
+# CUDA ops compilation results
+module/nn/ops/build/
+module/nn/ops/dist/
+module/nn/ops/MultiScaleDeformableAttention.egg-info/
+module/nn/ops/**/*.so
+module/nn/ops/**/*.cpp.o
+module/nn/ops/**/*.cu.o
+*.egg-info/
+# Python compilation
+*.pyc
+**/__pycache__/
+*.pyo
+*.pyd
+
+/utils/TrackEval/error_log.txt
+*.tar.gz
+tmp/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.spl
+*.synctex.gz
+*.xdv
+*.gz
+
+outputs/results/DanceTrack/multi_overlay_val
+outputs/results/DanceTrack/multi_focus_all_val
+!assets/*

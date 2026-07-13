@@ -1,0 +1,202 @@
+# External setting
+EXP_NAME: SportsMOT_eval
+MODULE_NAME: TAQ_MOTR
+CONFIG_PATH:
+MODE: val # val test
+OUTPUTS_DIR: outputs/
+CHECKPOINT_LEVEL: 0 # Disable gradient checkpointing during evaluation
+RESUME: # Retained for runtime parser compatibility; evaluation never resumes training
+EVAL_FILE_PATH: # Set a released checkpoint path here or pass it with -EFP
+
+# Internal global setting
+hidden_dim: &hidden_dim 256
+num_classes: &num_classes 1
+visualize: false
+batch_norm: &batch_norm normal # freeze # normal, no_local
+
+Training:
+  # codex : Evaluation runtime only; training hyperparameters are intentionally omitted.
+  Available_gpus: 0
+  use_distributed: false
+  seed: 42
+  device: cuda
+
+Dataset:
+  dataset_name: SportsMOT
+  dataset_root:
+  video_name_prefix: ""
+  # Evaluation dataloader setting
+  sampler_shuffle: False
+  num_workers: 4 # Number of workers per process
+  persistent_workers: True
+  prefetch_factor: 2 # Number of batches each worker prefetches
+
+Backbone: # PResNet from Detr
+  depth: 50
+  variant: d
+  return_idx: [1, 2, 3]
+  num_stages: 4
+  freeze_norm: True
+
+Encoder:
+  feature_levels: 3
+  in_channels: [512, 1024, 2048] # PResNet output channels
+  feat_strides: [8, 16, 32] # Feature strides
+  use_group_norm: false
+  #  eval_spatial_size: [ 1080, 1920 ]    # Evaluation image size
+
+  # intra (Internal Transformer encoding)
+  use_padding_mask: true # Ignore padding areas
+  hidden_dim: *hidden_dim # Hidden dimension
+  use_encoder_idx: [2] # Only encode S5 features
+  num_encoder_layers: 1 # Number of Transformer layers
+  nhead: 8 # Number of attention heads
+  dim_feedforward: 1024 # Feedforward network dimension
+  dropout: 0. # Dropout rate
+  enc_act: "gelu" # Activation function
+  pe_temperature: 20
+  batch_norm: *batch_norm
+
+  # cross (Cross-scale feature fusion)
+  expansion: 1.0 # Expansion ratio
+  depth_mult: 1 # Depth multiplier
+  act: "gelu" # Activation function
+
+Decoder:
+  num_classes: *num_classes
+  norm_style: "freeze_BN" # support GN, LN, BN(original), freeze_BN
+  activation: "gelu" # support 'silu','relu','leaky_relu','gelu','hardsigmoid'
+  # ---Detection query Config
+  det_query_mode: "hybrid" # 'generative','learnable','hybrid'
+  query_select_method: default # default: Select topK based on maximum category confidence,
+  #                                       one2many: Select topk based on category confidence,
+  #                                       agnostic: Only for num_classes = 1
+  hqg_init_feat_levels: [-1] # HQG seed feature levels in yaml order, -1 means the last level
+  hqg_num_blocks: 3 # Number of HQG interaction blocks
+  hqg_num_learnable_memory: 32 # Capacity of learnable memory parameters in HQG
+  hqg_active_learnable_memory: null # Actual learnable memory tokens used in forward; null means use all
+  qpn_interact_max_state: 1 # Max tracker state allowed in HQG track memory; -1 disables track memory
+
+  # ---Encoder Config
+  feat_channels: [256, 256, 256] # input features dims from hybrid encoder
+  feat_strides: [8, 16, 32] # features sample strides
+  feat_levels: 3 # Number of feature levels
+  hidden_dim: *hidden_dim # hidden dim for transformer
+  num_points: [4, 4, 4] # sample number for each scale
+
+  # ---Transformer decoder
+  use_sine_pos: false # Reference to global position encoding config
+  use_query_scale: true # Enable query position scaling after det/track merge
+  num_layers: &num_decoder_layer 6 # Number of transformer decoder layers
+  nhead: 8 # Number of multi-head attention heads
+  num_queries: &num_det_queries 200 # Number of detection queries
+  #  dim_feedforward: 1024
+  merge_det_track_layer: &merge_DT_layer 1 # Detection query and track query will be merged after this layer
+  cross_attn_method: CUDA # default: use pytorch; CUDA: use original cuda implementation
+
+  # Evaluation configuration
+  eval_idx: -1 # Evaluation layer index: -1 means use last layer output
+
+Criterion:
+  # codex : The evaluator still constructs Criterion; empty losses keep this config evaluation-only.
+  num_classes: *num_classes
+  frame_length: [1]
+  losses_weight: {}
+  aux_loss: false
+  matcher_cfg:
+    weight_dict: { cost_bbox: 1, cost_giou: 1, cost_class: 1 }
+
+Inference:
+  # Result exporting (independent from Criterion.track_thresh / track life-cycle)
+  result_score_thresh: 0.5
+  result_min_area: 100
+  result_only_active: true
+
+Life_cycle_management:
+  hidden_dim: *hidden_dim
+  num_classes: *num_classes
+  high_conf_threshold: 0.4
+  new_born_threshold: 0.8
+  track_thresh: 0.5
+  miss_tolerance: 30
+  Sudden_death_threshold: 0.3
+  long_memory_lambda: 0.01
+  recover_iou_threshold: 0.5
+  det_recover_enable: true
+  det_recover_max_time: 30
+  det_recover_min_history: 0
+  det_recover_app_weight: 0.55
+  det_recover_motion_weight: 0.45
+  det_recover_cost_threshold: 0.4
+  det_recover_center_sigma: 0.35
+  det_recover_shape_sigma: 0.12
+
+Query_updater:
+  # Required constructor fields; both augmentation ratios remain disabled for evaluation.
+  hidden_dim: *hidden_dim
+  ffn_dim: 2048
+  dropout: 0.0
+  tp_drop_ratio: 0.0
+  fp_insert_ratio: 0.0
+  long_memory_lambda: 0.01
+  use_sine_pos: true # Reference to global position encoding config
+
+Visualizer:
+  enabled: false
+  workers: 4
+  writer_workers: 2
+  show_cross_attn: False
+  show_self_attn: False
+  show_first_layer: False
+  hook:
+    enabled: false
+    queue_size: 2048
+    block_on_full: true
+    clone_tensor: true
+    switches:
+      hqg_topk_source: false
+      newborn_selector: false
+  time:
+    enabled: false
+    switches:
+      Model_forward: false
+  tasks:
+    bbox_render:
+      enabled: false
+      save_image: false
+      show_image: false
+      draw_frame_text: false
+      window_delay: 1
+    hqg_topk_roi_map:
+      enabled: false
+      save_image: false
+      show_image: false
+      window_delay: 1
+      alpha: 0.45
+      min_score: 0.0
+      draw_frame_text: false
+      draw_track_bbox: false
+      track_bbox_alpha: 0.28
+      draw_query_bbox: false
+    hqg_histogram:
+      enabled: false
+      bins: 100
+      range: [0.0, 1.0]
+      save_png: false
+      save_csv: false
+      save_npz: false
+    det_recover_monitor:
+      enabled: false
+      save_image: false
+      show_image: false
+      draw_frame_text: false
+      save_csv: false
+      save_png: false
+      save_all_frames: false
+      draw_rejected: false
+      window_delay: 1
+    runtime_profile:
+      enabled: false
+      names: ["Model_forward"]
+      save_txt: false
+      save_csv: false

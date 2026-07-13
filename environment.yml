@@ -1,0 +1,52 @@
+name: TAQ_MOTR
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10.18
+  - pytorch=2.3.1
+  - torchvision=0.18.1
+  - torchaudio=2.3.1
+  - pytorch-cuda=11.8
+  # Default: full CUDA toolkit (includes nvcc and dev tools) for compiling custom CUDA ops.
+  - cuda-toolkit=11.8
+  # Keep key CUDA pieces pinned on 11.8 to avoid solver drifting to newer major versions.
+  - cuda-version=11.8
+  - cuda-nvcc=11.8.89
+  # Optional runtime-only preset (no nvcc):
+  # 1) remove the 3 lines above: cuda-toolkit/cuda-version/cuda-nvcc
+  # 2) enable the line below instead
+  # - cudatoolkit=11.8
+  - gcc_linux-64=11.4
+  - gxx_linux-64=11.4
+  - ninja
+  - numpy=2.0.1
+  # Keep OpenCV fixed to avoid pulling an uncontrolled multimedia stack.
+  - opencv=4.12.0
+  - py-opencv=4.12.0
+  - libopencv=4.12.0
+
+  # Core lock for deterministic image decode in this project:
+  # Good (aligned): pillow=11.3.0=py310hb1c3d2d_0 + libjpeg-turbo=2.0.0 + jpeg=9e
+  # Bad (mismatch observed): pillow=11.3.0=py310h6557065_3 + libjpeg-turbo=3.1.2
+  # Do NOT install/upgrade numpy, opencv-python, or matplotlib via pip in this env.
+  # Use conda-only for these packages to keep image decode and inference behavior stable.
+  - pillow=11.3.0=py310hb1c3d2d_0
+  - jpeg=9e
+  - libjpeg-turbo=2.0.0
+  - harfbuzz=10.2.0
+  - lcms2=2.16
+  - libtiff=4.7.0
+  - libdeflate=1.22
+  - tqdm=4.67.1
+  - pyyaml=6.0.2
+  - tensorboard
+  # Keep matplotlib fixed to reduce transitive image stack drift.
+  - matplotlib=3.10.6
+  - scipy=1.15.3
+  - rich=13.9.4
+  - bytecode=0.16.2
+  - yaml=0.2.5
+  - setuptools=72.1.0
