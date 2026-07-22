@@ -144,6 +144,7 @@ def _inference_core(
     mode: str,
     sub_out_path="",
     visualizer: Visualizer | None = None,
+    require_complete_gt: bool = False,
 ):
     """Inference the dataset through a trained model"""
     if is_dist():
@@ -164,6 +165,13 @@ def _inference_core(
 
     """ build Dataset """
     dataset.eval(mode=mode, rank=rank, world_size=world_size)
+    has_complete_gt = False
+    if str(mode).lower() == "test":
+        has_complete_gt = eval_utils.has_complete_split_gt(dataset=dataset, split=mode)
+        if require_complete_gt and not has_complete_gt:
+            raise RuntimeError(
+                "Training-time test evaluation requires gt/gt.txt for every selected test sequence."
+            )
     dataloader_eval = build_dataloader(
         dataset=dataset,
         config=cfg["Dataset"],
@@ -285,7 +293,7 @@ def _inference_core(
     logger.show(head=f" result files path: ", log=f"{result_dir}", write=True)
     # Clear GPU memory after inference
     torch.cuda.empty_cache()
-    return out_path, result_dir
+    return out_path, result_dir, has_complete_gt
 
 
 def inference_offline(config: dict):
@@ -351,7 +359,7 @@ def inference_offline(config: dict):
             )
 
         trackers_to_eval = f"inference_{config['MODE']}"
-        run_dir, result_dir = _inference_core(
+        run_dir, result_dir, test_has_complete_gt = _inference_core(
             cfg=config,
             dataset=dataset_eval,
             model=model,
@@ -368,9 +376,38 @@ def inference_offline(config: dict):
         eval_step = eval_utils._get_eval_step(sub_out_path)
         eval_metric_log = None
         eval_time_cost = None
-        if config["MODE"] == "val" and is_main_process():
+        should_evaluate = config["MODE"] == "val" or (
+            config["MODE"] == "test" and test_has_complete_gt
+        )
+
+        if is_main_process() and config["MODE"] == "test":
+            run_dir, _, submission_zip_path = _get_test_run_paths(cfg=config, sub_out_path=sub_out_path)
+            submission_source_dir = result_dir
+            if getattr(dataset_eval, "name", "") in {"MOT17", "MOT20"}:
+                submission_source_dir = _stage_motchallenge_submission(
+                    dataset=dataset_eval,
+                    result_dir=result_dir,
+                    run_dir=run_dir,
+                )
+            _build_submission_zip(result_dir=submission_source_dir, zip_path=submission_zip_path)
+            eval_logger.show(
+                head=f"Submission package: {sub_out_path}",
+                log=f"{submission_zip_path}",
+                write=True,
+                with_header=True,
+            )
+
+        if should_evaluate and is_main_process():
+            tracker_sub_folder = sub_out_path
+            if config["MODE"] == "test":
+                tracker_sub_folder = os.path.join(sub_out_path, "result")
             eval_start_timestamp = time.time()
-            summary, eval_report = eval_utils.evaluate(config, dataset_eval, trackers_to_eval, sub_out_path)
+            summary, eval_report = eval_utils.evaluate(
+                config,
+                dataset_eval,
+                trackers_to_eval,
+                tracker_sub_folder,
+            )
             eval_time_cost = time.time() - eval_start_timestamp
 
         summary = eval_utils._broadcast_eval_summary(summary)
@@ -378,7 +415,7 @@ def inference_offline(config: dict):
             eval_metric_log = eval_utils._build_eval_metric_log(summary)
             eval_metric_log.sync()
 
-        if is_main_process() and config["MODE"] == "val":
+        if is_main_process() and should_evaluate:
             eval_msg = ""
             if eval_time_cost is not None:
                 eval_msg = f"eval time: {eval_time_cost:<6.2f} seconds\n"
@@ -409,30 +446,26 @@ def inference_offline(config: dict):
                 trackers_to_eval=trackers_to_eval,
                 sub_out_path=sub_out_path,
             )
-        elif is_main_process() and config["MODE"] == "test":
-            run_dir, _, submission_zip_path = _get_test_run_paths(cfg=config, sub_out_path=sub_out_path)
-            submission_source_dir = result_dir
-            if getattr(dataset_eval, "name", "") in {"MOT17", "MOT20"}:
-                submission_source_dir = _stage_motchallenge_submission(
-                    dataset=dataset_eval,
-                    result_dir=result_dir,
-                    run_dir=run_dir,
-                )
-            _build_submission_zip(result_dir=submission_source_dir, zip_path=submission_zip_path)
-            eval_logger.show(
-                head=f"Submission package: {sub_out_path}",
-                log=f"{submission_zip_path}",
-                write=True,
-                with_header=True,
-            )
         del model
         torch.cuda.empty_cache()
         if is_dist():
             dist.barrier()
 
 
-def inference_online(config: dict, dataset: MOTDataset, model: nn.Module, logger: Logger, epoch: int, use_tb=True):
-    trackers_to_eval = "inference_val"
+def inference_online(
+    config: dict,
+    dataset: MOTDataset,
+    model: nn.Module,
+    logger: Logger,
+    epoch: int,
+    eval_split: str = "val",
+    use_tb=True,
+):
+    eval_split = str(eval_split).strip().lower()
+    if eval_split not in {"val", "test"}:
+        raise ValueError(f"Training.eval_after_epoch_split must be 'val' or 'test', got: {eval_split}")
+
+    trackers_to_eval = f"inference_{eval_split}"
     sub_out_path = f"epoch_{epoch}"
     if is_dist():
         dist.barrier()
@@ -445,8 +478,9 @@ def inference_online(config: dict, dataset: MOTDataset, model: nn.Module, logger
         dataset=dataset,
         model=model,
         logger=logger,
-        mode="val",
+        mode=eval_split,
         sub_out_path=sub_out_path,
+        require_complete_gt=eval_split == "test",
     )
     org_model.train()
 
@@ -454,8 +488,16 @@ def inference_online(config: dict, dataset: MOTDataset, model: nn.Module, logger
     eval_report = {}
     eval_time_cost = None
     if is_main_process():
+        tracker_sub_folder = sub_out_path
+        if eval_split == "test":
+            tracker_sub_folder = os.path.join(sub_out_path, "result")
         eval_start_timestamp = time.time()
-        summary, eval_report = eval_utils.evaluate(config, dataset, trackers_to_eval, sub_out_path)
+        summary, eval_report = eval_utils.evaluate(
+            config,
+            dataset,
+            trackers_to_eval,
+            tracker_sub_folder,
+        )
         eval_time_cost = time.time() - eval_start_timestamp
 
     summary = eval_utils._broadcast_eval_summary(summary)
@@ -482,7 +524,7 @@ def inference_online(config: dict, dataset: MOTDataset, model: nn.Module, logger
             eval_utils.metrics_to_tensorboard(logger.tb_eval_logger, eval_metric_log, epoch)
         eval_utils.write_default_eval_result(
             config=config,
-            eval_split="val",
+            eval_split=eval_split,
             trackers_to_eval=trackers_to_eval,
             sub_out_path=sub_out_path,
             eval_msg=_log,
@@ -491,7 +533,7 @@ def inference_online(config: dict, dataset: MOTDataset, model: nn.Module, logger
         )
         eval_utils.copy_eval_result_to_visualize(
             config=config,
-            eval_split="val",
+            eval_split=eval_split,
             trackers_to_eval=trackers_to_eval,
             sub_out_path=sub_out_path,
         )

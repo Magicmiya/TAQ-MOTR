@@ -258,6 +258,16 @@ def _remove_old_best_checkpoint(output_dir: str, metric_name: str):
             os.remove(os.path.join(output_dir, file_name))
 
 
+def _has_best_checkpoint(output_dir: str, metric_name: str) -> bool:
+    if not os.path.isdir(output_dir):
+        return False
+    prefix = f"checkpoint_best_{metric_name}_epoch_"
+    return any(
+        file_name.startswith(prefix) and file_name.endswith(".pth")
+        for file_name in os.listdir(output_dir)
+    )
+
+
 def update_best_checkpoints(
     config: dict,
     logger: Any,
@@ -265,39 +275,59 @@ def update_best_checkpoints(
     summary: dict | None,
     epoch: int,
 ):
+    """Update best-metric states and return metrics whose checkpoints must be copied.
+
+    Call this after evaluation but before saving ``checkpoint_last.pth``.  The
+    caller saves that up-to-date last checkpoint once, then calls
+    :func:`save_best_checkpoints` to derive the requested best checkpoints.
+    """
     if not is_main_process() or not summary:
-        return
+        return []
 
     output_dir = config["OUTPUTS_DIR"]
-    last_ckpt_path = os.path.join(output_dir, "checkpoint_last.pth")
-    if not os.path.isfile(last_ckpt_path):
-        return
-
     best_metrics = train_states.setdefault("best_eval_metrics", {"HOTA": float("-inf"), "MOTA": float("-inf")})
     best_epochs = train_states.setdefault("best_eval_epochs", {"HOTA": -1, "MOTA": -1})
+    metrics_to_save = []
     for metric_name in ("HOTA", "MOTA"):
         if metric_name not in summary:
             continue
         metric_value = float(summary[metric_name])
-        if metric_value <= float(best_metrics.get(metric_name, float("-inf"))):
+        has_best_checkpoint = _has_best_checkpoint(output_dir=output_dir, metric_name=metric_name)
+        is_metric_improved = metric_value > float(best_metrics.get(metric_name, float("-inf")))
+        if not is_metric_improved and has_best_checkpoint:
             continue
+
+        # A missing best file invalidates its recorded score; rebuild it from this evaluation.
+        best_metrics[metric_name] = metric_value
+        best_epochs[metric_name] = int(epoch)
+        metrics_to_save.append(metric_name)
+        action = "updated" if is_metric_improved else "rebuilding missing checkpoint with"
+        logger.show(
+            head="[Best] ",
+            log=f"{action} {metric_name}={metric_value:.4f} at epoch={epoch}.",
+            write=True,
+        )
+    return metrics_to_save
+
+
+def save_best_checkpoints(config: dict, logger: Any, metric_names: list[str], epoch: int):
+    """Derive updated best checkpoints from an already saved ``checkpoint_last.pth``."""
+    if not is_main_process():
+        return
+
+    from module import copy_checkpoint
+
+    output_dir = config["OUTPUTS_DIR"]
+    for metric_name in metric_names:
         _remove_old_best_checkpoint(output_dir=output_dir, metric_name=metric_name)
         dst_name = f"checkpoint_best_{metric_name}_epoch_{epoch}.pth"
-        from module import copy_checkpoint
-
         copy_checkpoint(
             root_dir=output_dir,
             src_name="checkpoint_last.pth",
             dst_name=dst_name,
             logger=logger,
         )
-        best_metrics[metric_name] = metric_value
-        best_epochs[metric_name] = int(epoch)
-        logger.show(
-            head="[Best] ",
-            log=f"{metric_name}={metric_value:.4f} at epoch={epoch}, saved {dst_name}",
-            write=True,
-        )
+        logger.show(head="[Best] ", log=f"saved {dst_name}.", write=True)
 
 
 def get_param_groups(config: dict, model: nn.Module) -> tuple[list[dict], list[str]]:

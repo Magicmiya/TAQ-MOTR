@@ -17,6 +17,8 @@ class MOTDataset(Dataset):
         dataset_subdir = cfg.get("dataset_subdir", self.name)
         self.dataset_dir: str = str(dataset_dir if dataset_dir else os.path.join(cfg["dataset_root"], dataset_subdir))
         self.video_name_prefix = cfg.get("video_name_prefix", self.name)
+        # Keep the frame-name convention configurable so DanceTrack-compatible datasets can reuse its loader.
+        self.image_name_width = int(cfg.get("image_name_width", 8 if self.name == "DanceTrack" else 6))
         self.mode = "not set"
         self._sub_dir = {}
         self._gts = {}

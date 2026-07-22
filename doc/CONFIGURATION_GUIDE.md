@@ -8,7 +8,7 @@ The project uses one complete YAML file for each training recipe. The same main 
 
 - `MODE=train`: training or resuming training.
 - `MODE=val`: validation inference followed by TrackEval evaluation.
-- `MODE=test`: test inference followed by submission packaging.
+- `MODE=test`: test inference followed by submission packaging, plus TrackEval when complete GT is available.
 - Single-GPU or multi-GPU execution, selected with `--gpus`, `--distributed`, and `torch.distributed.run`.
 
 Separate single-GPU, multi-GPU, and evaluation YAML files are therefore no longer maintained for the same dataset.
@@ -222,6 +222,7 @@ Training:
   Available_gpus: 0
   use_distributed: false
   eval_after_epoch: 1
+  eval_after_epoch_split: val
   seed: 42
   device: cuda
   epochs: 30
@@ -236,6 +237,8 @@ Training:
   clip_max_norm: 0.1
   accumulation_steps: 1
 ```
+
+`eval_after_epoch_split` selects the split used by training-time evaluation. It supports `val` and `test` and defaults to `val` when omitted.
 
 `stage_policy` describes epoch-dependent clip lengths, batch sizes, sampling intervals, datasets, learning rates, and auxiliary supervision:
 

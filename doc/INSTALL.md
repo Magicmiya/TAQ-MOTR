@@ -44,6 +44,11 @@ You can use scripts in `data/tools` to generate dataset-side auxiliary files.
 |  |- train/
 |  |- val/
 |  `- test/
+|- BFT/
+|  |- annotations_mot/
+|  |- train/
+|  |- val/
+|  `- test/
 |- MOT17/
 |  |- annotations/
 |  |- train/
@@ -59,6 +64,8 @@ You can use scripts in `data/tools` to generate dataset-side auxiliary files.
 ```shell
 # for DanceTrack
 python data/tools/gen_dancetrack.py -P <path to your datasets root>
+# for BFT: generate the DanceTrack-compatible layout
+python data/tools/gen_bft.py -P <path to your datasets root>
 # for MOT17
 python data/tools/gen_motchallenge_gts.py -P <path to your datasets root> -B MOT17
 # for MOT20
@@ -71,10 +78,41 @@ python data/tools/gen_aux_det_coco.py -P <path to your datasets root> -D CrowdHu
 Expected generated files:
 
 - DanceTrack: `DanceTrack/train_seqmap.txt`, `DanceTrack/val_seqmap.txt`, and `DanceTrack/test_seqmap.txt`.
+- BFT: an eight-digit `img1/` view, normalized `gt/gt.txt`, and `seqinfo.ini` under every sequence in `BFT/{train,val,test}`. By default, `img1/` contains relative symbolic links to the original six-digit JPG files.
 - MOT17: `MOT17/annotations/train.json`, `train_half.json`, `val_half.json`, `test.json`, plus `gt_train_half.txt` and `gt_val_half.txt` under each train sequence `gt/` folder. If sequence `det/det.txt` files exist, `det_train_half.txt` and `det_val_half.txt` are generated under `det/`.
 - MOT20: `MOT20/annotations/train.json`, `train_half.json`, `val_half.json`, `test.json`, plus `gt_half-train.txt` and `gt_half-val.txt` under each train sequence `gt/` folder. If sequence `det/det.txt` files exist, `det_half-train.txt` and `det_half-val.txt` are generated under `det/`.
 - CityPersons: `CityPersons/annotations/train.json`.
 - CrowdHuman: `CrowdHuman/annotations/train.json` and `CrowdHuman/annotations/val.json`.
+
+### BFT preprocessing
+
+Pass the common dataset root to `-P`, not the nested `BFT` directory. For example, if the dataset is located at `/home/liu/Train/Data/BFT`, use:
+
+```shell
+python data/tools/gen_bft.py -P /home/liu/Train/Data
+```
+
+The preprocessing preserves the original images and `annotations_mot` files. For each sequence, it creates the layout consumed by the `BFT(DanceTrack)` dataset class:
+
+```text
+BFT/train/An3014/
+|- 000001.jpg
+|- 000002.jpg
+|- img1/
+|  |- 00000001.jpg -> ../000001.jpg
+|  `- 00000002.jpg -> ../000002.jpg
+|- gt/
+|  `- gt.txt
+`- seqinfo.ini
+```
+
+The BFT placeholders in `frame,id,x,y,w,h,-1,-1,-1,-1` are normalized to the valid single-class MOT ground-truth form `frame,id,x,y,w,h,1,1,1`. The script is repeatable: matching generated files are reported as `unchanged`.
+
+Useful options:
+
+- `--splits train`: preprocess only the selected split or splits, for example `--splits train val`.
+- `--copy-images`: copy images into `img1/` instead of creating symbolic links.
+- `--force`: replace generated files that exist with different content or link targets.
 
 Optional aux detection layout:
 

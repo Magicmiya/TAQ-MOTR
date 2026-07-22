@@ -36,6 +36,7 @@ Each recipe uses one complete YAML for training, validation, and test inference:
 | Recipe | Config | Training data |
 | --- | --- | --- |
 | DanceTrack | `configs/dancetrack_train.yaml` | DanceTrack train |
+| BFT | `configs/bft_train.yaml` | BFT train |
 | SportsMOT | `configs/sportsmot_train.yaml` | SportsMOT train |
 | SportsMOT Mix | `configs/sportsmot_mix.yaml` | SportsMOT train+val and CrowdHuman train+val |
 
@@ -48,15 +49,25 @@ The following examples use four GPUs. Replace the dataset root placeholder befor
 ### DanceTrack
 
 ```bash
-OMP_NUM_THREADS=1 python -m torch.distributed.run --nproc_per_node=4 main.py \
+OMP_NUM_THREADS=8 python -m torch.distributed.run --nproc_per_node=4 main.py \
   -E DanceTrack_train -C configs/dancetrack_train.yaml --gpus 0,1,2,3 --distributed \
+  -DR <Path to your dataset root> -P rtdetrv2_r50vd_6x_coco_ema.pth
+```
+
+### BFT
+
+Run `data/tools/gen_bft.py` as described in [Dataset Prepare](INSTALL.md#bft-preprocessing) before training:
+
+```bash
+OMP_NUM_THREADS=8 python -m torch.distributed.run --nproc_per_node=4 main.py \
+  -E BFT_train -C configs/bft_train.yaml --gpus 0,1,2,3 --distributed \
   -DR <Path to your dataset root> -P rtdetrv2_r50vd_6x_coco_ema.pth
 ```
 
 ### SportsMOT
 
 ```bash
-OMP_NUM_THREADS=1 python -m torch.distributed.run --nproc_per_node=4 main.py \
+OMP_NUM_THREADS=8 python -m torch.distributed.run --nproc_per_node=4 main.py \
   -E SportsMOT_train -C configs/sportsmot_train.yaml --gpus 0,1,2,3 --distributed \
   -DR <Path to your dataset root> -P rtdetrv2_r50vd_6x_coco_ema.pth
 ```
@@ -64,7 +75,7 @@ OMP_NUM_THREADS=1 python -m torch.distributed.run --nproc_per_node=4 main.py \
 ### SportsMOT Mix
 
 ```bash
-OMP_NUM_THREADS=1 python -m torch.distributed.run --nproc_per_node=4 main.py \
+OMP_NUM_THREADS=8 python -m torch.distributed.run --nproc_per_node=4 main.py \
   -E SportsMOT_mix -C configs/sportsmot_mix.yaml --gpus 0,1,2,3 --distributed \
   -DR <Path to your dataset root> -P rtdetrv2_r50vd_6x_coco_ema.pth
 ```
@@ -94,7 +105,7 @@ OMP_NUM_THREADS=1 python -m torch.distributed.run --nproc_per_node=4 main.py \
 ```
 
 - `-M val` runs inference and then evaluates the generated tracking results automatically.
-- `-M test` runs inference and then creates a submission ZIP automatically.
+- `-M test` always creates a submission ZIP; when every selected test sequence has GT, it also runs evaluation automatically.
 
 For resume training, checkpoint inheritance, distributed options, and parameter sweeps, see [CONFIGURATION_GUIDE.md](CONFIGURATION_GUIDE.md).
 
@@ -135,7 +146,7 @@ python script/offline_query_focus_visualize.py \
 
 **Q: Where should `-DR` point?**
 
-A: Use the common dataset root. For SportsMOT, do not pass the nested `SportMOT/dataset` directory; the code derives it automatically.
+A: Use the common dataset root. For BFT, pass the parent of `BFT/`; for SportsMOT, do not pass the nested `SportMOT/dataset` directory because the code derives it automatically.
 
 **Q: Why are model keys missing during evaluation?**
 

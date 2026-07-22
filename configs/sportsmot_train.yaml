@@ -15,7 +15,6 @@ visualize: false
 batch_norm: &batch_norm normal # freeze # normal, no_local
 
 Training:
-  # codex : Evaluation runtime only; training hyperparameters are intentionally omitted.
   Available_gpus: 0
   use_distributed: false
   seed: 42
@@ -98,7 +97,7 @@ Decoder:
   eval_idx: -1 # Evaluation layer index: -1 means use last layer output
 
 Criterion:
-  # codex : The evaluator still constructs Criterion; empty losses keep this config evaluation-only.
+  # The evaluator still constructs Criterion; empty losses keep this config evaluation-only.
   num_classes: *num_classes
   frame_length: [1]
   losses_weight: {}

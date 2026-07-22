@@ -14,7 +14,7 @@ from utils.utils import dist_rank
 
 def _seed_worker(worker_id: int, base_seed: int, epoch: int):
     worker_base_seed = int(base_seed) + int(epoch) * 100000 + dist_rank() * 1000
-    # codex : Lock Python/NumPy/Torch RNGs inside workers for reproducible augmentation.
+    # Lock Python/NumPy/Torch RNGs inside workers for reproducible augmentation.
     worker_seed = worker_base_seed + int(worker_id)
     random.seed(worker_seed)
     np.random.seed(worker_seed % (2**32))

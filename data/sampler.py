@@ -41,7 +41,7 @@ class MOTBatchSampler:
         if self.skip_batches > 0:
             batch_iter = itertools.islice(batch_iter, self.skip_batches, None)
         for batch_idx, batch in batch_iter:
-            # codex : Derive random_idx from batch position so mid-epoch resume matches uninterrupted training.
+            # Derive random_idx from batch position so mid-epoch resume matches uninterrupted training.
             random_idx = random.Random(self.seed + batch_idx).randint(0, 12)
             yield [(random_idx, idx) for idx in batch]
 
@@ -69,5 +69,5 @@ def build_sampler(dataset: MOTDataset, shuffle=False, epoch=int(0), is_eval=Fals
 
 
 def build_batch_sampler_seed(base_seed: int, epoch: int) -> int:
-    # codex : Rank-specific batch seeds avoid identical frame-offset choices across DDP ranks.
+    # Rank-specific batch seeds avoid identical frame-offset choices across DDP ranks.
     return int(base_seed) + int(epoch) * 100000 + dist_rank() * 1000

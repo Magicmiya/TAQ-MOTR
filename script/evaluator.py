@@ -37,6 +37,32 @@ EVAL_TB_GROUPS = (
 )
 EVAL_TB_OTHER_TAG = "eval/other"
 
+
+def has_complete_split_gt(dataset: MOTDataset, split: str) -> bool:
+    """Return whether every selected sequence has GT, rejecting partial GT splits."""
+    split = str(split).strip().lower()
+    selected_videos = dataset.get_selected_videos(mode=split)
+    if not selected_videos:
+        raise RuntimeError(f"No sequences selected for split '{split}'.")
+
+    gt_root = os.path.join(dataset.dataset_dir, split)
+    videos_with_gt = []
+    videos_without_gt = []
+    for video in selected_videos:
+        gt_path = os.path.join(gt_root, video, "gt", "gt.txt")
+        if os.path.isfile(gt_path):
+            videos_with_gt.append(video)
+        else:
+            videos_without_gt.append(video)
+
+    if videos_with_gt and videos_without_gt:
+        raise RuntimeError(
+            f"Split '{split}' contains partial GT files. "
+            f"Missing gt/gt.txt for: {', '.join(videos_without_gt)}"
+        )
+    return bool(videos_with_gt)
+
+
 class _TeeStream(io.TextIOBase):
     """Mirror writes to multiple text streams (terminal + memory buffer)."""
     def __init__(self, *streams):
@@ -137,7 +163,7 @@ def evaluate(cfg, dataset: MOTDataset, trackers_to_eval: str, tracker_sub_folder
     out_root = os.path.join(cfg["OUTPUTS_DIR"], split)
     data_dir, dataset_name = dataset.dataset_dir, dataset.name
     selected_videos = dataset.get_selected_videos(mode=split)
-    if dataset_name in {"DanceTrack", "SportsMOT"}:
+    if dataset_name in {"DanceTrack", "SportsMOT", "BFT"}:
         num_cores, display_less_progress, benchmark = 16, False, "MOT17"
     elif dataset_name == "MOT17":
         num_cores, display_less_progress, benchmark = 8, True, "MOT17"

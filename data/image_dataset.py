@@ -214,7 +214,7 @@ class ImageDataset(MOTDataset):
         if crop_w <= 0 or crop_h <= 0:
             return imgs, infos
 
-        # codex : Simulate FDTA-style pseudo motion only for repeated image clips before the shared train transforms.
+        # Simulate FDTA-style pseudo motion only for repeated image clips before the shared train transforms.
         shifted_imgs = [imgs[0].copy()]
         shifted_infos = [deepcopy(infos[0])]
         for frame_idx in range(1, len(imgs)):
@@ -319,7 +319,7 @@ class ImageDataset(MOTDataset):
                 return False
             if len(ids) != bbox.shape[0] or len(labels) != bbox.shape[0] or len(areas) != bbox.shape[0]:
                 return False
-            # codex : Keep FDTA's conservative fallback behavior when pseudo motion removes all valid targets.
+            # Keep conservative fallback behavior when pseudo motion removes all valid targets.
             if torch.unique(ids).numel() != ids.numel():
                 return False
         return True

@@ -3,6 +3,7 @@
 ## 📖 Overview
 
 > **TAQ-MOTR** makes detection queries aware of existing track states, enabling the detection queries in Tracking-by-Propagation (TBP) trackers to move from DETR-style single-frame whole-image detection toward MOT-specific goals:
+>
 > - Discovering previously untracked newborn objects
 > - Focusing on complex regions that offer extra cues for track queries.
 
@@ -16,6 +17,8 @@ The demo below shows four panels: original frame (top-left), Generative queries 
 
 ## 🔥 News
 
+- **2026.07.22**: 📊 We have updated the latest SportsMOT evaluation results and checkpoints and added evaluation results for the BFT dataset. Support for additional MOTChallenge-family datasets will be added in future updates.
+
 - **2026.07.13**: 🚀 We have released the source code and checkpoints for reproducing our experiments. Detailed training configurations will be made publicly available after the paper is accepted。
 
 - **2026.06.18**: 🚧 We have built the full project and provided video examples for the model attention visualization. The HQG module code is now public, and the complete version will be fully released after the paper review stage is complete.
@@ -25,19 +28,26 @@ The demo below shows four panels: original frame (top-left), Generative queries 
 ### DanceTrack
 
 | **Methods**  | **HOTA $\uparrow$** | **DetA $\uparrow$** | **AssA $\uparrow$** | **MOTA $\uparrow$** | **IDF1 $\uparrow$** |                     **checkpoint**                      |
-| :------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :----------------: | :-----------------------------------------------------: |
-| **TAQ-MOTR** |        72.0         |        82.4         |        63.1         |        91.7         |        76.6        | [Google][DanceTrack-google] / [Baidu][DanceTrack-baidu] |
+| :----------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------------------------------------------: |
+| **TAQ-MOTR** |        72.0         |        82.4         |        63.1         |        91.7         |        76.6         | [Google][DanceTrack-google] / [Baidu][DanceTrack-baidu] |
 
 ### SportsMOT
 
-| **Methods**                | **HOTA $\uparrow$** | **DetA $\uparrow$** | **AssA $\uparrow$** | **MOTA $\uparrow$** | **IDF1 $\uparrow$** |                   **checkpoint**                    |
-| :--------------------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :----------------: | :-------------------------------------------------: |
-| **TAQ-MOTR**       |        72.2         |        84.1         |        63.3         |        93.6         |        73.0        | [Google][SportMOT-google] / [Baidu][SportMOT-baidu] |
-| **TAQ-MOTR Mix** |        74.6         |        84.9         |        65.6         |        94.7         |        77.8        | [Google][SportMOT-google] / [Baidu][SportMOT-baidu] |
+|   **Methods**    | **HOTA $\uparrow$** | **DetA $\uparrow$** | **AssA $\uparrow$** | **MOTA $\uparrow$** | **IDF1 $\uparrow$** |                      **checkpoint**                       |
+| :--------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :-------------------------------------------------------: |
+|   **TAQ-MOTR**   |        72.3         |        82.3         |        63.6         |        92.0         |        75.6         | [Google][SportMOT-TO-google] / [Baidu][SportMOT-TO-baidu] |
+| **TAQ-MOTR Mix** |        74.6         |        84.9         |        65.6         |        94.7         |        77.8         |    [Google][SportMOT-google] / [Baidu][SportMOT-baidu]    |
+
+### BFT
+
+| **Methods**  | **HOTA $\uparrow$** | **DetA $\uparrow$** | **AssA $\uparrow$** | **MOTA $\uparrow$** | **IDF1 $\uparrow$** |              **checkpoint**               |
+| :----------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :-----------------: | :---------------------------------------: |
+| **TAQ-MOTR** |        73.4         |        69.0         |        78.3         |        76.7         |        85.6         | [Google][BFT-google] / [Baidu][BFT-baidu] |
 
 ## 🔧 Quick Start
 
 - See **[INSTALL.md]** for instructions on installing the required components.
+- See **[Dataset preparation](doc/INSTALL.md#dataset-prepare)** for the `data/tools` preprocessing commands, including BFT conversion to the DanceTrack layout.
 - See **[QUICK_START.md]** for quick-start instructions on model training, inference, and evaluation.
 - See **[Visualization examples](doc/QUICK_START.md#9-visualization-examples)** for reproducing the README attention demo and offline renderings.
 
@@ -51,8 +61,12 @@ The paper is currently under review. BibTeX will be added once it is available.
 
 [DanceTrack-google]: https://drive.google.com/file/d/1o6AStF-OoG7edE7TBYFVVTZnxbvUde32/view?usp=sharing
 [DanceTrack-baidu]: https://pan.baidu.com/s/1J-4PKw4vKr28FcrYlxUbJQ?pwd=ajpd
+[SportMOT-TO-google]: https://drive.google.com/file/d/16pn8cNLwhaXPVyLEdArUw9DmG6ccaBDE/view?usp=sharing
+[SportMOT-TO-baidu]: https://pan.baidu.com/s/1MwR8m9g_uXcyhlX2f9wRiw?pwd=cge4
 [SportMOT-google]: https://drive.google.com/file/d/16OcPjhkYBHwov7IPZEIjZ2hM2nUoy9Zj/view?usp=sharing
 [SportMOT-baidu]: https://pan.baidu.com/s/1WVFPfYvUCl2pYZUBA2xxMQ?pwd=zy9s
+[BFT-google]: https://drive.google.com/file/d/1JxJAQoLTVBHye3Aae2vbxCkg_Cp5MLab/view?usp=sharing
+[BFT-baidu]: https://pan.baidu.com/s/1dILa99hfK0YtgFE9DByxcQ?pwd=rs6a
 [MeMOTR]: https://github.com/MCG-NJU/MeMOTR
 [Deformable-DETR]: https://github.com/fundamentalvision/Deformable-DETR
 [DAB-DETR]: https://github.com/IDEA-Research/DAB-DETR

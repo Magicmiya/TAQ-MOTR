@@ -1,12 +1,14 @@
 # External setting
-EXP_NAME: DanceTrack_eval
+EXP_NAME: BFT_train
 MODULE_NAME: TAQ_MOTR
 CONFIG_PATH:
-MODE: val # val test
+MODE: train # val test
 OUTPUTS_DIR: outputs/
-CHECKPOINT_LEVEL: 0 # Disable gradient checkpointing during evaluation
-RESUME: # Retained for runtime parser compatibility; evaluation never resumes training
-EVAL_FILE_PATH: # Set a released checkpoint path here or pass it with -EFP
+NEW_OUT_DIR: True
+PRETRAINED_MODEL: weight/rtdetrv2_r50vd_6x_coco_ema.pth
+CHECKPOINT_LEVEL: 1 # 0: No checkpoint, 1: Encoder, 2: +Decoder, 3: +Backbone, 4: +QueryUpdater
+RESUME:
+EVAL_FILE_PATH:
 
 # Internal global setting
 hidden_dim: &hidden_dim 256
@@ -20,21 +22,39 @@ Training:
   seed: 42
   device: cuda
 
+
 Dataset:
-  dataset_name: DanceTrack
+  dataset_name: BFT
+  train_datasets:
+    BFT: []
   dataset_root:
-  # Evaluation dataloader setting
-  sampler_shuffle: False
+  video_name_prefix: ""
+  # Sampling setting
+  sample_length: 2
+  batch_size: 5 # Per-GPU batch size, total effective batch = batch_size * num_GPUs
+  sample_mode: random_interval
+  sample_interval: 10
+  DE_random_IoU_crop_rate: 1.0
+
+  # Dataloader setting
+  sampler_shuffle: True
   num_workers: 4 # Number of workers per process
   persistent_workers: True
   prefetch_factor: 2 # Number of batches each worker prefetches
 
+  # Data enhance
+  coco_size: False
+  overflow_bbox: False
+  reverse_clip: False
+
 Backbone: # PResNet from Detr
   depth: 50
   variant: d
+  freeze_at: 1
   return_idx: [1, 2, 3]
   num_stages: 4
   freeze_norm: True
+  pretrained: False # we use global pretrained module
 
 Encoder:
   feature_levels: 3
@@ -69,11 +89,16 @@ Decoder:
   query_select_method: default # default: Select topK based on maximum category confidence,
   #                                       one2many: Select topk based on category confidence,
   #                                       agnostic: Only for num_classes = 1
+  num_denoising: &num_denoising 200 # Detection denoising token num, 0 means without denoising training
   hqg_init_feat_levels: [-1] # HQG seed feature levels in yaml order, -1 means the last level
   hqg_num_blocks: 3 # Number of HQG interaction blocks
   hqg_num_learnable_memory: 32 # Capacity of learnable memory parameters in HQG
   hqg_active_learnable_memory: null # Actual learnable memory tokens used in forward; null means use all
   qpn_interact_max_state: 1 # Max tracker state allowed in HQG track memory; -1 disables track memory
+  hqg_det_dn_mask_track_memory: true # Mask track memory in HQG auxiliary DN branch during training
+  use_det_dn: true # If true, use suppressed det queries as DN branch; if false, use gt-based DN
+  label_noise_ratio: 0.5 # 50% of label will be randomly replaced with other categories
+  box_noise_scale: 0.5 # Noise will be randomly generated from [-w, +w] * scale and [-h,+h] * scale
 
   # ---Encoder Config
   feat_channels: [256, 256, 256] # input features dims from hybrid encoder
@@ -104,6 +129,9 @@ Life_cycle_management:
   miss_tolerance: 30
   Sudden_death_threshold: 0.3
   long_memory_lambda: 0.01
+  tp_drop_ratio: 0.0
+  fp_insert_ratio: 0.0
+  no_tracking_augment: true
   recover_iou_threshold: 0.5
   det_recover_enable: True
   det_recover_max_time: 30
@@ -115,22 +143,44 @@ Life_cycle_management:
   det_recover_shape_sigma: 0.12
 
 Criterion:
-  # The evaluator still constructs Criterion; empty losses keep this config evaluation-only.
   num_classes: *num_classes
-  frame_length: [1]
-  losses_weight: {}
-  aux_loss: false
+  hidden_dim: *hidden_dim
+  frame_length: [2, 3, 4, 5, 5]
+  num_decoder_layer: *num_decoder_layer
+  merge_det_track_layer: *merge_DT_layer
+  alpha: 0.25
+  gamma: 2.0
+  # available: loss_labels_focal, loss_labels_vfl, loss_bboxes_L1, loss_bboxes_giou, loss_topk_disp.
+  losses_weight:
+    {
+      loss_bboxes_L1: 5,
+      loss_bboxes_giou: 2,
+      loss_labels_vfl: 2,
+      loss_topk_disp: 5,
+    }
+  topk_disp_enable: true
+  topk_disp_min_iou: 0.5
+
+  dn_num: *num_denoising
+  aux_loss: true # Use loss from different decoder layer outputs
+  aux_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  det_dn_aux_weights: [0.25, 0.25, 0.25, 0.5, 0.75, 1.0]
+
   matcher_cfg:
-    weight_dict: { cost_bbox: 1, cost_giou: 1, cost_class: 1 }
+    weight_dict: { cost_bbox: 5, cost_giou: 2, cost_class: 2 }
+    use_focal_loss: true
+    gamma: 2.0
+    alpha: 0.25
 
 Query_updater:
-  # Required constructor fields; both augmentation ratios remain disabled for evaluation.
   hidden_dim: *hidden_dim
   ffn_dim: 2048
   dropout: 0.0
   tp_drop_ratio: 0.0
   fp_insert_ratio: 0.0
+  no_tracking_augment: true
   long_memory_lambda: 0.01
+  use_dab: True
   use_sine_pos: true # Reference to global position encoding config
 
 Inference:
@@ -146,6 +196,7 @@ Visualizer:
   show_cross_attn: False
   show_self_attn: False
   show_first_layer: False
+  train_interval: 1
   hook:
     enabled: false
     queue_size: 2048
@@ -198,3 +249,11 @@ Visualizer:
       names: ["Model_forward"]
       save_txt: false
       save_csv: false
+    grad_monitor:
+      enabled: false
+      interval: 100
+      enabled_epochs: []
+      log_dir_name: grad_log
+      modules:
+        query_updater: ["query_updater."]
+        decoder: ["decoder."]

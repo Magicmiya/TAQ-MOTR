@@ -99,7 +99,7 @@ class MixedDataset(MOTDataset):
         dataset = self._get_eval_dataset()
         if not hasattr(dataset, "get_trackeval_dataset_config"):
             return {}
-        # codex : Preserve dataset-specific TrackEval overrides, such as MOT17 val_half
+        # Preserve dataset-specific TrackEval overrides, such as MOT17 val_half
         # mapping to train/gt_val_half.txt during online evaluation of mixed training.
         return dataset.get_trackeval_dataset_config(mode=mode)
 
@@ -107,7 +107,7 @@ class MixedDataset(MOTDataset):
         return self.datasets_by_name[self.eval_dataset_name]
 
     def _restore_train_view(self):
-        # codex : Keep the container state in train mode between online-eval passes.
+        # Keep the container state in train mode between online-eval passes.
         self.name = "MixedDataset"
         self.dataset_dir = ""
         self.mode = "train"
@@ -122,7 +122,7 @@ class MixedDataset(MOTDataset):
         self.sample_vid_max_frame = {}
 
     def _sync_runtime_view(self, dataset: MOTDataset):
-        # codex : Reuse the primary dataset eval metadata so TrackEval sees the original dataset identity.
+        # Reuse the primary dataset eval metadata so TrackEval sees the original dataset identity.
         self.name = dataset.name
         self.dataset_dir = dataset.dataset_dir
         self.mode = dataset.mode

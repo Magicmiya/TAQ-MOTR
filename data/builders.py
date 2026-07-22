@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from .BFT import build as build_bft
 from .MOTChallenge import build as build_motchallenge
 from .SportsMOT import build as build_sportsmot
 from .dancetrack import build as build_dancetrack
@@ -10,6 +11,7 @@ from .image_dataset import build as build_image_dataset
 
 DATASET_BUILDERS = {
     "DanceTrack": build_dancetrack,
+    "BFT": build_bft,
     "SportsMOT": build_sportsmot,
     "MOT17": build_motchallenge,
     "MOT20": build_motchallenge,

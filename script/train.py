@@ -21,6 +21,7 @@ from utils import (
     resolve_stage,
     apply_stage_lr,
     update_best_checkpoints,
+    save_best_checkpoints,
     get_param_groups,
     start_manual_save_listener,
     poll_manual_save_command,
@@ -38,6 +39,14 @@ from utils.visualizer import GetTime, TensorHook, Visualizer
 
 def train(config: dict):
     train_cfg = config["Training"]
+    eval_after_epoch_split = str(train_cfg.get("eval_after_epoch_split", "val")).strip().lower()
+    if eval_after_epoch_split not in {"val", "test"}:
+        raise ValueError(
+            "Training.eval_after_epoch_split must be 'val' or 'test', "
+            f"got: {eval_after_epoch_split}"
+        )
+    # Keep the resolved default in runtime config snapshots without requiring every YAML to declare it.
+    train_cfg["eval_after_epoch_split"] = eval_after_epoch_split
     set_seed(train_cfg["seed"])
     visualizer = None
     vis_result_cfg = None
@@ -279,9 +288,26 @@ def train(config: dict):
         train_states["start_iter_in_epoch"] = 0
         train_states["manual_stop"] = False
 
-        # Checkpointing policy:
-        # - Maintain a single "last" checkpoint updated every epoch.
-        # - Derive long-term checkpoints from "last" without another torch.save.
+        best_metrics_to_save = []
+        if train_cfg["eval_after_epoch"] > 0 and epoch % train_cfg["eval_after_epoch"] == 0:
+            summary = inference_online(
+                config=config,
+                dataset=dataset_train,
+                model=model,
+                logger=train_logger,
+                epoch=epoch,
+                eval_split=eval_after_epoch_split,
+            )
+            best_metrics_to_save = update_best_checkpoints(
+                config=config,
+                logger=train_logger,
+                train_states=train_states,
+                summary=summary,
+                epoch=epoch,
+            )
+
+        # Evaluate and update Best state before the sole epoch-end last-checkpoint save.
+        # This keeps every resume checkpoint synchronized with the current evaluation result.
         save_checkpoint(
             model=model,
             path=checkpoint_last_path,
@@ -290,28 +316,18 @@ def train(config: dict):
             scheduler=None,
             backup=False,
         )
+        save_best_checkpoints(
+            config=config,
+            logger=train_logger,
+            metric_names=best_metrics_to_save,
+            epoch=epoch,
+        )
         if train_cfg["multi_checkpoint"]:
             copy_checkpoint(
                 root_dir=config["OUTPUTS_DIR"],
                 src_name=checkpoint_last_name,
                 dst_name=f"checkpoint_{epoch}.pth",
                 logger=train_logger,
-            )
-
-        if train_cfg["eval_after_epoch"] > 0 and epoch % train_cfg["eval_after_epoch"] == 0:
-            summary = inference_online(
-                config=config,
-                dataset=dataset_train,
-                model=model,
-                logger=train_logger,
-                epoch=epoch,
-            )
-            update_best_checkpoints(
-                config=config,
-                logger=train_logger,
-                train_states=train_states,
-                summary=summary,
-                epoch=epoch,
             )
 
     copy_checkpoint(wait=True)

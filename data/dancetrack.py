@@ -110,8 +110,7 @@ class DanceTrack(MOTDataset):
     def _get_single_frame_from_subset(self, vid: str, idx: int, subset_name: str):
         split_dir = self._sub_dir[subset_name]
         img_path = os.path.join(
-            split_dir, vid, "img1", f"{idx:08d}.jpg"
-            if self.name == "DanceTrack" else f"{idx:06d}.jpg")
+            split_dir, vid, "img1", f"{idx:0{self.image_name_width}d}.jpg")
         img = Image.open(img_path)
         subset_offset = self.mode_list.index(subset_name) * 10000000
         ids_offset = subset_offset + self._vid_idx[subset_name][vid] * 100000

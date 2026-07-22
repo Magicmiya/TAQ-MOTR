@@ -10,7 +10,7 @@ class SportsMOT(DanceTrack):
         dataset_cfg.setdefault("dataset_dir", os.path.join(dataset_cfg["dataset_root"], "SportMOT", "dataset"))
         dataset_cfg.setdefault("video_name_prefix", "")
         super(SportsMOT, self).__init__(config=dataset_cfg, mode=mode, transform=transform)
-        # codex : SportsMOT stores train/val/test under SportMOT/dataset with sequence ids like v_xxx, so we normalize both here.
+        # SportsMOT stores train/val/test under SportMOT/dataset with sequence ids like v_xxx, so we normalize both here.
 
 
 def build(config: dict, mode: str):

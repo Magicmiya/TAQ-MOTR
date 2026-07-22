@@ -260,7 +260,7 @@ def process_benchmark(datasets_root: str | Path, benchmark: str):
     if not dataset_root.is_dir():
         raise FileNotFoundError(f"{benchmark} dataset not found under: {datasets_root}")
 
-    # codex : Keep MOT17 and MOT20 preprocessing in one implementation so split generation rules stay aligned.
+    # Keep MOT17 and MOT20 preprocessing in one implementation so split generation rules stay aligned.
     write_half_split_files(dataset_root=dataset_root, benchmark=benchmark)
     for split_name in JSON_SPLITS:
         build_json_split(dataset_root=dataset_root, benchmark=benchmark, split_name=split_name)
